@@ -1,0 +1,12 @@
+services:
+  hammerhead-sync:
+    build: .
+    image: hammerhead-fit-downloader
+    restart: unless-stopped   # keep the daemon alive across host reboots
+    environment:
+      - HAMMERHEAD_CLIENT_ID=${HAMMERHEAD_CLIENT_ID}
+      - HAMMERHEAD_CLIENT_SECRET=${HAMMERHEAD_CLIENT_SECRET}
+      - HAMMERHEAD_BATCH_SIZE=${HAMMERHEAD_BATCH_SIZE:-50}
+      - HAMMERHEAD_INTERVAL_MINUTES=${HAMMERHEAD_INTERVAL_MINUTES:-30}
+    volumes:
+      - ./data:/data   # token.json, state.json, and fit_files/ all live here
