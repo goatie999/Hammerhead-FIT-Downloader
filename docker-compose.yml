@@ -8,10 +8,7 @@ services:
     restart: unless-stopped
     env_file: .env
     volumes:
-      # Watch folder stays at the root, next to (not inside) hammerhead/.
+      # Fit files are downloaded into the common 'Watch' for Dreeve to ingest
       - ./watch:/data/dreeve/watch
-      # Sync cursor: which activities are already downloaded.
       - ./hammerhead/state:/data/hammerhead/state
-      # OAuth tokens. Kept in its own folder so you can back it up or lock
-      # down its permissions independently of state/.
       - ./hammerhead/tokens:/data/hammerhead/tokens
