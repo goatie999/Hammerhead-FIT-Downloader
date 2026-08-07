@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="Logo">
+</p>
+
 # Hammerhead FIT Downloader
 
 Pulls activity FIT files out of a rider's Hammerhead (Karoo) account and drops
