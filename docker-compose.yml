@@ -1,12 +1,17 @@
 services:
-  hammerhead-sync:
-    build: .
-    image: hammerhead-fit-downloader
-    restart: unless-stopped   # keep the daemon alive across host reboots
-    environment:
-      - HAMMERHEAD_CLIENT_ID=${HAMMERHEAD_CLIENT_ID}
-      - HAMMERHEAD_CLIENT_SECRET=${HAMMERHEAD_CLIENT_SECRET}
-      - HAMMERHEAD_BATCH_SIZE=${HAMMERHEAD_BATCH_SIZE:-50}
-      - HAMMERHEAD_INTERVAL_MINUTES=${HAMMERHEAD_INTERVAL_MINUTES:-30}
+  hammerhead-fit-downloader:
+    # Replace YOUR_DOCKERHUB_USERNAME with your actual Docker Hub namespace
+    # (see "Building and publishing the image" in README.md). Docker Compose
+    # pulls this automatically; nothing is built on the host.
+    image: goatie999/hammerhead-fit-downloader:latest
+    container_name: hammerhead-fit-downloader
+    restart: unless-stopped
+    env_file: .env
     volumes:
-      - ./data:/data   # token.json, state.json, and fit_files/ all live here
+      # Watch folder stays at the root, next to (not inside) hammerhead/.
+      - ./watch:/data/dreeve/watch
+      # Sync cursor: which activities are already downloaded.
+      - ./hammerhead/state:/data/hammerhead/state
+      # OAuth tokens. Kept in its own folder so you can back it up or lock
+      # down its permissions independently of state/.
+      - ./hammerhead/tokens:/data/hammerhead/tokens
