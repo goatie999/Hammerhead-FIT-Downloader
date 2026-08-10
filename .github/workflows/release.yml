@@ -1,0 +1,97 @@
+name: Release
+on:
+  release:
+    types: [published]
+
+jobs:
+  # Bumps the patch segment of the version in both pyproject.toml and __init__.py (this project
+  # keeps them in sync manually rather than deriving one from the other) and pushes that commit
+  # straight to the default branch. The Docker tag below uses the full three-part version, so
+  # every release gets its own distinct, immutable image tag.
+  bump-version:
+    name: Bump patch version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Bump the patch version
+        id: bump
+        run: |
+          set -euo pipefail
+
+          CURRENT=$(grep -oP '(?<=^version = ")[0-9]+\.[0-9]+\.[0-9]+' pyproject.toml)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+
+          sed -i "s/^version = \"${CURRENT}\"/version = \"${NEW_VERSION}\"/" pyproject.toml
+          sed -i "s/__version__ = \"${CURRENT}\"/__version__ = \"${NEW_VERSION}\"/" \
+            src/hammerhead_fit_downloader/__init__.py
+
+          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push the version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml src/hammerhead_fit_downloader/__init__.py
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.version }}"
+          git push origin HEAD:${{ github.event.repository.default_branch }}
+
+  build:
+    name: Validate and publish the Docker image
+    needs: bump-version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # Picks up the bump commit that was just pushed, not the commit the release pointed at.
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the project and its dev dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e .
+          pip install pytest respx
+
+      - name: Run test suite
+        run: pytest
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: |
+            goatie999/hammerhead-fit-downloader:latest
+            goatie999/hammerhead-fit-downloader:${{ needs.bump-version.outputs.version }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
