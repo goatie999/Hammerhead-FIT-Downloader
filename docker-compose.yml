@@ -3,7 +3,7 @@ services:
     # Replace YOUR_DOCKERHUB_USERNAME with your actual Docker Hub namespace
     # (see "Building and publishing the image" in README.md). Docker Compose
     # pulls this automatically; nothing is built on the host.
-    image: YOUR_DOCKERHUB_USERNAME/hammerhead-fit-downloader:latest
+    image: goatie999/hammerhead-fit-downloader:latest
     container_name: hammerhead-fit-downloader
     restart: unless-stopped
     env_file: .env
