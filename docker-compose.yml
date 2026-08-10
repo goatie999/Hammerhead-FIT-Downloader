@@ -1,8 +1,8 @@
 services:
   hammerhead-fit-downloader:
-    # Replace YOUR_DOCKERHUB_USERNAME with your actual Docker Hub namespace
-    # (see "Building and publishing the image" in README.md). Docker Compose
-    # pulls this automatically; nothing is built on the host.
+    # Pulls the pre-built image from goatie999's Docker Hub account (see
+    # "About docker-compose.yml" in README.md). Nothing is built on this
+    # host — Docker Compose pulls the image automatically.
     image: goatie999/hammerhead-fit-downloader:latest
     container_name: hammerhead-fit-downloader
     restart: unless-stopped

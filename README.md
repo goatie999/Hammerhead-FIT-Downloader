@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" width="256" alt="Logo">
+</p>
+
 # Hammerhead FIT Downloader
 
 Pulls activity FIT files out of a rider's Hammerhead (Karoo) account and drops
@@ -51,52 +55,71 @@ Dreeve only needs read access to activity files, never to your Hammerhead
 credentials. `state/` and `tokens/` are split so you can back up or restrict
 permissions on the tokens independently of the sync cursor.
 
-These in-container paths are **fixed, not environment-configurable** —
-`/data/dreeve/watch`, `/data/hammerhead/state`, `/data/hammerhead/tokens`.
-To change where they live *on the host*, edit the `volumes:` section of
-`docker-compose.yml`; the paths on the right-hand side (inside the
-container) should stay as they are.
+## About `docker-compose.yml`
 
-## How downloads avoid racing Dreeve's watch
-
-Dreeve scans the watch folder on its own schedule and imports whatever it
-finds there — it has no way to know a file is still being written. So each
-activity is downloaded to `<name>.part` first; only once that write has
-fully completed does it get renamed to `<name>.fit`. A rename is atomic on
-the same filesystem, so Dreeve only ever sees either no file, or a complete
-one — never a partial download mid-write.
-
-## Building and publishing the image
-
-`docker-compose.yml` pulls a pre-built image rather than building on the
-host, so end users never need the source tree or a build toolchain. Build
-and push it yourself once (and again after any code change):
-
-```bash
-docker build -t YOUR_DOCKERHUB_USERNAME/hammerhead-fit-downloader:latest .
-docker login
-docker push YOUR_DOCKERHUB_USERNAME/hammerhead-fit-downloader:latest
+```yaml
+services:
+  hammerhead-fit-downloader:
+    image: goatie999/hammerhead-fit-downloader:latest
+    container_name: hammerhead-fit-downloader
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./watch:/data/dreeve/watch
+      - ./hammerhead/state:/data/hammerhead/state
+      - ./hammerhead/tokens:/data/hammerhead/tokens
 ```
 
-Then update the `image:` line in `docker-compose.yml` (and anywhere else you
-deploy it) to match. If your Docker Hub repo is private, run `docker login`
-on the deployment host too, before `docker compose pull`/`up`.
+- **`image`** — pulls the pre-built image from `goatie999`'s Docker Hub
+  account rather than building on your machine, so running this doesn't
+  require the source tree, Python, or a build toolchain — just Docker.
+- **`container_name`** — a fixed, predictable name for `docker logs`,
+  `docker exec`, etc., instead of Compose's auto-generated one.
+- **`restart: unless-stopped`** — the connector comes back up after a reboot
+  or a crash, but stays down if you deliberately `docker compose down` it.
+- **`env_file: .env`** — loads your Hammerhead credentials and poll interval
+  from `.env` (copied from `.env.example`); see "One-time setup" below.
+- **`volumes`** — three bind mounts from host folders onto fixed paths
+  inside the container (see "Persistent storage layout" above). Editing the
+  left-hand side of each line is how you change *where on the host* these
+  live; the right-hand (in-container) side should stay as-is.
 
 ## One-time setup
 
-1. Register an API client with Hammerhead to get a `client_id` / `client_secret`.
+1. Register a Hammerhead API client to get a `client_id` / `client_secret`.
+   Hammerhead's own guide walks through this:
+   [Creating a Developer Account](https://support.hammerhead.io/hc/en-us/articles/43558376710683-Creating-a-Developer-Account).
+   When asked for a redirect URI, use `http://localhost:8080/callback` — a
+   placeholder page on your own machine that doesn't need to actually be
+   running anything.
 2. Copy `.env.example` to `.env` and fill in `HAMMERHEAD_CLIENT_ID` /
    `HAMMERHEAD_CLIENT_SECRET`.
-3. Run the interactive authorization once:
+3. Pull the image and run the interactive authorization once:
 
    ```bash
+   docker compose pull
    docker compose run --rm hammerhead-fit-downloader setup http://localhost:8080/callback
    ```
 
-   This opens Hammerhead's consent screen, then exchanges the returned
-   `code` for an access/refresh token pair, saved to
+   What happens:
+
+   1. The terminal prints a long `https://api.hammerhead.io/...` URL. Copy
+      the **whole thing** into your regular web browser.
+   2. Log in to Hammerhead if asked, and approve access.
+   3. Hammerhead redirects your browser to
+      `http://localhost:8080/callback?code=SOMETHING&state=...`. Nothing is
+      actually listening on port 8080, so the page itself will fail to load
+      — that's expected. What you need is in the address bar: copy just the
+      value after `code=` and before the next `&`.
+   4. Back in the terminal, it's waiting with a prompt:
+      `Paste the code query param from the redirect URL:` — paste that
+      value and press Enter.
+
+   This exchanges the code for an access/refresh token pair, saved to
    `/data/hammerhead/tokens/tokens.json` in the container (i.e.
-   `./hammerhead/tokens/tokens.json` on the host).
+   `./hammerhead/tokens/tokens.json` on the host). That file is your login
+   for every future run — you won't need to repeat this step unless you
+   delete it or revoke access.
 
 ## Running
 
@@ -109,6 +132,44 @@ The connector polls `GET /activities` every `HAMMERHEAD_POLL_INTERVAL`
 starting from the date of the last activity it synced, downloads any FIT
 files it hasn't already synced, and writes them into the watch folder
 (`/data/dreeve/watch` in the container, `./watch` on the host).
+
+### Running as part of Dreeve's own `docker-compose.yml`
+
+By default this ships as its own standalone stack. If instead you want it
+managed alongside Dreeve itself — one `docker compose up` for the whole
+system — add it as a service inside Dreeve's master `docker-compose.yml`
+and join it to Dreeve's `dreeve-network`:
+
+```yaml
+services:
+  hammerhead-fit-downloader:
+    image: goatie999/hammerhead-fit-downloader:latest
+    container_name: hammerhead-fit-downloader
+    restart: unless-stopped
+    env_file: ./hammerhead-fit-downloader/.env
+    volumes:
+      - ./watch:/data/dreeve/watch                          # same folder Dreeve watches
+      - ./hammerhead-fit-downloader/state:/data/hammerhead/state
+      - ./hammerhead-fit-downloader/tokens:/data/hammerhead/tokens
+    networks:
+      - dreeve-network
+
+networks:
+  dreeve-network:
+    external: true
+```
+
+Point the `./watch` mount at whatever host path Dreeve's own service already
+uses for its watch folder, so both containers see the same directory. The
+`networks:` block is only needed if `dreeve-network` isn't already declared
+elsewhere in that same compose file — Compose will error if you declare an
+`external: true` network twice under the same name.
+
+Note that joining `dreeve-network` is about convenience (co-located
+lifecycle, consistent DNS/service discovery with the rest of the stack), not
+a functional requirement — this connector never talks to Dreeve directly,
+only to the shared `watch/` folder, so it works identically whether it's on
+that network or entirely standalone.
 
 ## Tests
 

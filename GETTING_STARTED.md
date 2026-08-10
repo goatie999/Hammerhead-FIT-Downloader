@@ -55,23 +55,24 @@ Every command from here on assumes you're standing inside that
 ## 3. Build and publish the image (once, or after any code change)
 
 `docker-compose.yml` doesn't build the image itself — it pulls a pre-built
-one from Docker Hub. So before anything else, build it and push it to your
-own Docker Hub account:
+one from Docker Hub, from the `goatie999` account. If that's your account,
+build and push it once (and again after any code change):
 
 ```bash
-docker build -t YOUR_DOCKERHUB_USERNAME/hammerhead-fit-downloader:latest .
+docker build -t goatie999/hammerhead-fit-downloader:latest .
 docker login
-docker push YOUR_DOCKERHUB_USERNAME/hammerhead-fit-downloader:latest
+docker push goatie999/hammerhead-fit-downloader:latest
 ```
 
-Replace `YOUR_DOCKERHUB_USERNAME` with your actual Docker Hub username in
-**both** the commands above and in `docker-compose.yml` (open it in a text
-editor and edit the `image:` line to match). If it's a private repository,
-also run `docker login` once on whichever machine will actually run the
-service (e.g. your TrueNAS box), so it's allowed to pull it.
+If you've forked this project and want it under your own Docker Hub
+namespace instead, replace `goatie999` with your own username in the
+commands above **and** in the `image:` line of `docker-compose.yml`. If the
+repository is private, also run `docker login` once on whichever machine
+will actually run the service (e.g. your TrueNAS box), so it's allowed to
+pull it.
 
 You only need to repeat this step if you change the connector's code —
-day-to-day, the deployment machine just pulls whatever tag you push.
+day-to-day, the deployment machine just pulls whatever tag was last pushed.
 
 ---
 
@@ -79,11 +80,11 @@ day-to-day, the deployment machine just pulls whatever tag you push.
 
 You need a `client_id` and `client_secret`, issued by Hammerhead when you
 register an API client (this is separate from your regular Hammerhead
-account login). Contact **support@hammerhead.io** (from the API spec) to
-request API access, and tell them your redirect URI will be
-`http://localhost:8080/callback` — this is just a placeholder page on your
-own machine that catches the login response; it doesn't need to actually be
-running anything.
+account login). Hammerhead's own guide walks through the whole process:
+[Creating a Developer Account](https://support.hammerhead.io/hc/en-us/articles/43558376710683-Creating-a-Developer-Account).
+When it asks for a redirect URI, use `http://localhost:8080/callback` —
+this is just a placeholder page on your own machine that catches the login
+response; it doesn't need to actually be running anything.
 
 You'll get back two values that look like random strings. Keep them
 private — treat them like a password.
@@ -113,12 +114,17 @@ your machine). Save the file.
 
 ## 6. Authorize the connector with Hammerhead (one time only)
 
+Pull the image, then run the one-time setup command:
+
 ```bash
+docker compose pull
 docker compose run --rm hammerhead-fit-downloader setup http://localhost:8080/callback
 ```
 
-The first time you run this, Docker Compose will pull the image you pushed
-in step 3 if it isn't already on this machine.
+`docker compose pull` fetches the image you pushed in step 3 from Docker
+Hub; `docker compose run` then starts a temporary container from it just
+for this one command (`--rm` removes that container again once it exits —
+the long-running service you start in step 7 is separate).
 
 What happens:
 
@@ -162,6 +168,21 @@ hammerhead/tokens/            <- OAuth tokens from step 6
 
 ---
 
+## How downloads avoid racing Dreeve's watch
+
+Worth understanding once things are running, not just for troubleshooting:
+Dreeve scans the watch folder on its own schedule and imports whatever it
+finds there — it has no way to know a file is still being written. So each
+activity is downloaded to `<name>.part` first; only once that write has
+fully completed does it get renamed to `<name>.fit`. A rename is atomic on
+the same filesystem, so Dreeve only ever sees either no file, or a complete
+one — never a partial download mid-write. If you happen to `ls watch/`
+mid-download you may briefly see one of these `.part` files; that's normal,
+and it'll rename itself the instant the download finishes. You never need
+to do anything with a `.part` file yourself.
+
+---
+
 ## 8. Check it's actually working
 
 Watch the logs live:
@@ -191,12 +212,6 @@ Check the actual files on your machine:
 ls watch/
 ```
 
-If you happen to `ls` mid-download you may briefly see a file ending in
-`.part` — that's the activity still being written. It's renamed to `.fit`
-automatically the instant the download finishes, which is deliberate: it
-stops Dreeve from ever picking up a half-downloaded file. You don't need to
-do anything with `.part` files; ignore any you see.
-
 ---
 
 ## 9. Point Dreeve at the same folder
@@ -214,13 +229,17 @@ volumes:
 
 (Run `pwd` inside this project folder to get the exact absolute path to use.)
 
+If you'd rather run this connector as *part of* Dreeve's own
+`docker-compose.yml` stack instead of a separate one, see "Running as part
+of Dreeve's own docker-compose.yml" in `README.md`.
+
 ---
 
 ## Everyday commands, once it's set up
 
 | What you want | Command |
 |---|---|
-| Pull the latest image you've pushed | `docker compose pull` |
+| Pull the latest image that was pushed | `docker compose pull` |
 | Start it | `docker compose up -d` |
 | Stop it | `docker compose down` |
 | See live logs | `docker compose logs -f` |
@@ -233,9 +252,9 @@ volumes:
   check `HAMMERHEAD_CLIENT_ID` / `HAMMERHEAD_CLIENT_SECRET` in `.env` have
   no extra spaces or quotes around them.
 - **"pull access denied" / "repository does not exist":** the `image:` line
-  in `docker-compose.yml` still says `YOUR_DOCKERHUB_USERNAME` (or the wrong
-  username), or the repo is private and you haven't run `docker login` on
-  this machine.
+  in `docker-compose.yml` points at a Docker Hub namespace/repo that either
+  doesn't exist yet (step 3 wasn't completed) or is private and you haven't
+  run `docker login` on this machine.
 - **"No stored Hammerhead tokens found" when running `up`:** step 6 wasn't
   completed successfully, or `hammerhead/tokens/tokens.json` got deleted.
   Re-run step 6.
