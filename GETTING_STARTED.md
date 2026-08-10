@@ -105,7 +105,9 @@ HAMMERHEAD_CLIENT_ID=the-client-id-you-were-given
 HAMMERHEAD_CLIENT_SECRET=the-client-secret-you-were-given
 ```
 
-Leave everything else as-is for now. Save the file.
+Leave everything else as-is for now (the watch/state/token folder locations
+are fixed inside the app on purpose — see step 7 for where they end up on
+your machine). Save the file.
 
 ---
 
@@ -146,7 +148,7 @@ docker compose up -d
 ```
 
 `-d` runs it in the background. It will now poll Hammerhead every 30 minutes
-(configurable via `POLL_INTERVAL_SECONDS` in `.env`) and write any new
+(configurable via `HAMMERHEAD_POLL_INTERVAL` in `.env`) and write any new
 activity FIT files into the `watch/` folder that appears in your project
 directory.
 
@@ -188,6 +190,12 @@ Check the actual files on your machine:
 ```bash
 ls watch/
 ```
+
+If you happen to `ls` mid-download you may briefly see a file ending in
+`.part` — that's the activity still being written. It's renamed to `.fit`
+automatically the instant the download finishes, which is deliberate: it
+stops Dreeve from ever picking up a half-downloaded file. You don't need to
+do anything with `.part` files; ignore any you see.
 
 ---
 
