@@ -3,7 +3,7 @@
     python -m hammerhead_fit_downloader setup <redirect_uri>
         One-time interactive OAuth2 authorization against Hammerhead.
         Run this once, then ship the resulting tokens.json (or the whole
-        HAMMERHEAD_TOKEN_DIR volume) to wherever the connector runs.
+        /data/hammerhead/tokens folder) to wherever the connector runs.
 
     python -m hammerhead_fit_downloader run
         Starts the unattended poll loop that downloads new activities into

@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="assets/logo.svg" alt="Logo">
-</p>
-
 # Hammerhead FIT Downloader
 
 Pulls activity FIT files out of a rider's Hammerhead (Karoo) account and drops
@@ -55,8 +51,20 @@ Dreeve only needs read access to activity files, never to your Hammerhead
 credentials. `state/` and `tokens/` are split so you can back up or restrict
 permissions on the tokens independently of the sync cursor.
 
-These map to environment variables (see `.env.example`):
-`DREEVE_WATCH_FOLDER`, `HAMMERHEAD_STATE_DIR`, `HAMMERHEAD_TOKEN_DIR`.
+These in-container paths are **fixed, not environment-configurable** —
+`/data/dreeve/watch`, `/data/hammerhead/state`, `/data/hammerhead/tokens`.
+To change where they live *on the host*, edit the `volumes:` section of
+`docker-compose.yml`; the paths on the right-hand side (inside the
+container) should stay as they are.
+
+## How downloads avoid racing Dreeve's watch
+
+Dreeve scans the watch folder on its own schedule and imports whatever it
+finds there — it has no way to know a file is still being written. So each
+activity is downloaded to `<name>.part` first; only once that write has
+fully completed does it get renamed to `<name>.fit`. A rename is atomic on
+the same filesystem, so Dreeve only ever sees either no file, or a complete
+one — never a partial download mid-write.
 
 ## Building and publishing the image
 
@@ -86,9 +94,9 @@ on the deployment host too, before `docker compose pull`/`up`.
    ```
 
    This opens Hammerhead's consent screen, then exchanges the returned
-   `code` for an access/refresh token pair, saved under
-   `HAMMERHEAD_TOKEN_DIR/tokens.json` (i.e. `./hammerhead/tokens/tokens.json`
-   on the host).
+   `code` for an access/refresh token pair, saved to
+   `/data/hammerhead/tokens/tokens.json` in the container (i.e.
+   `./hammerhead/tokens/tokens.json` on the host).
 
 ## Running
 
@@ -96,10 +104,11 @@ on the deployment host too, before `docker compose pull`/`up`.
 docker compose up -d
 ```
 
-The connector polls `GET /activities` every `POLL_INTERVAL_SECONDS`
+The connector polls `GET /activities` every `HAMMERHEAD_POLL_INTERVAL`
 (default 1800s / 30 minutes, chosen to keep load on Hammerhead's API low),
 starting from the date of the last activity it synced, downloads any FIT
-files it hasn't already synced, and writes them into `DREEVE_WATCH_FOLDER`.
+files it hasn't already synced, and writes them into the watch folder
+(`/data/dreeve/watch` in the container, `./watch` on the host).
 
 ## Tests
 

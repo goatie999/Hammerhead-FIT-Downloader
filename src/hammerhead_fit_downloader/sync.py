@@ -4,8 +4,11 @@ just sourced from a different provider.
 
 Dreeve watches a folder for new FIT/TCX/GPX files and ingests whatever shows
 up, so the only contract we need to honor is: write a complete file, then
-move/rename it into place atomically so Dreeve never sees a half-written
-file.
+rename it into place atomically so Dreeve never sees a half-written file.
+Concretely: download to `<name>.part`, and only once the write has finished
+does it get renamed to `<name>.fit` -- a rename is atomic on the same
+filesystem, so Dreeve either sees no file at all, or the finished one, never
+something in between.
 """
 
 from __future__ import annotations
@@ -23,9 +26,10 @@ logger = logging.getLogger(__name__)
 _UNSAFE_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
-def _safe_filename(activity: ActivitySummary) -> str:
+def _safe_basename(activity: ActivitySummary) -> str:
+    """A filesystem-safe name for this activity, without an extension."""
     name = _UNSAFE_CHARS.sub("-", activity.name.strip()) or "activity"
-    return f"{activity.created_at[:10]}_{name}_{activity.id}.fit"
+    return f"{activity.created_at[:10]}_{name}_{activity.id}"
 
 
 def sync_once(client: HammerheadClient, state: SyncState, watch_folder: Path) -> int:
@@ -38,8 +42,9 @@ def sync_once(client: HammerheadClient, state: SyncState, watch_folder: Path) ->
         logger.info("Downloading activity %s (%s)", activity.id, activity.name)
         fit_bytes = client.download_activity_fit(activity.id)
 
-        final_path = watch_folder / _safe_filename(activity)
-        tmp_path = final_path.with_suffix(final_path.suffix + ".part")
+        basename = _safe_basename(activity)
+        final_path = watch_folder / f"{basename}.fit"
+        tmp_path = watch_folder / f"{basename}.part"
         tmp_path.write_bytes(fit_bytes)
         tmp_path.rename(final_path)  # atomic on the same filesystem
 

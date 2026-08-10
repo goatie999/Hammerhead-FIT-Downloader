@@ -12,6 +12,16 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+# Fixed in-container storage locations. Not environment-configurable on
+# purpose: the layout (watch/ at the root, hammerhead/state/ and
+# hammerhead/tokens/ alongside it) is part of the deployment contract with
+# docker-compose.yml, which bind-mounts host folders onto these exact paths.
+# Change where things live on the host by editing the volumes: section of
+# docker-compose.yml, not by setting an environment variable.
+WATCH_FOLDER = Path("/data/dreeve/watch")
+STATE_DIR = Path("/data/hammerhead/state")
+TOKEN_DIR = Path("/data/hammerhead/tokens")
+
 
 class ConfigError(RuntimeError):
     """Raised when required configuration is missing or invalid."""
@@ -61,20 +71,17 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
-        watch_folder = Path(_optional("DREEVE_WATCH_FOLDER", "/data/dreeve/watch"))
-        state_dir = Path(_optional("HAMMERHEAD_STATE_DIR", "/data/hammerhead/state"))
-        token_dir = Path(_optional("HAMMERHEAD_TOKEN_DIR", "/data/hammerhead/tokens"))
-        watch_folder.mkdir(parents=True, exist_ok=True)
-        state_dir.mkdir(parents=True, exist_ok=True)
-        token_dir.mkdir(parents=True, exist_ok=True)
+        WATCH_FOLDER.mkdir(parents=True, exist_ok=True)
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        TOKEN_DIR.mkdir(parents=True, exist_ok=True)
 
         return cls(
             client_id=_require("HAMMERHEAD_CLIENT_ID"),
             client_secret=_require("HAMMERHEAD_CLIENT_SECRET"),
-            watch_folder=watch_folder,
-            state_dir=state_dir,
-            token_dir=token_dir,
-            poll_interval_seconds=int(_optional("POLL_INTERVAL_SECONDS", "1800")),
+            watch_folder=WATCH_FOLDER,
+            state_dir=STATE_DIR,
+            token_dir=TOKEN_DIR,
+            poll_interval_seconds=int(_optional("HAMMERHEAD_POLL_INTERVAL", "1800")),
             api_base_url=_optional("HAMMERHEAD_API_BASE_URL", "https://api.hammerhead.io/v1/api"),
             auth_base_url=_optional("HAMMERHEAD_AUTH_BASE_URL", "https://api.hammerhead.io/v1/auth"),
         )
