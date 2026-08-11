@@ -1,6 +1,6 @@
 [project]
 name = "hammerhead-fit-downloader"
-version = "0.1.1"
+version = "1.1.0"
 description = "Pulls activity FIT files out of Hammerhead and drops them into Dreeve's watch folder. Inspired by dreeve-garmin-connector."
 readme = "README.md"
 requires-python = ">=3.11"
