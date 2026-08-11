@@ -19,6 +19,8 @@ Credit and thanks to them for the original design and for building Dreeve
 itself. This project is named differently on purpose, to avoid any
 confusion with their work rather than to distance itself from it.
 
+**NOTE:** this repository is entirely created by Anthropic's **Claude** and prompts to the **Sonnet 5** model
+
 ## Why this differs from the Garmin connector
 
 Garmin has no public developer API for activity export, so Garmin connectors
@@ -157,6 +159,16 @@ services:
 
 Point the `./watch` mount at whatever host path Dreeve's own service already
 uses for its watch folder, so both containers see the same directory.
+
+If as part of the one-time setup your token.json is in a different folder, establish the directory structure "<dreeve folder>/hammerhead/tokens" and copy the token.json to to here.
+
+Add the 3 environment variables for the Hammerhead-FIT-Downloader into the Dreeve App's .env file
+
+If the Dreeve App has already been running and you're adding Hammerhead Connector functionality to the Dreeve app, we need to '--force-recreate' the docker compose command for the new environment variables to be included 
+
+```bash
+docker compose up -d --force-recreate
+```
 
 Note that joining `dreeve-network` is about convenience (co-located
 lifecycle, consistent DNS/service discovery with the rest of the stack), not
