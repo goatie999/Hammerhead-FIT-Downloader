@@ -144,26 +144,19 @@ and join it to Dreeve's `dreeve-network`:
 services:
   hammerhead-fit-downloader:
     image: goatie999/hammerhead-fit-downloader:latest
-    container_name: hammerhead-fit-downloader
+    container_name: dreeve-hammerhead-connector
     restart: unless-stopped
-    env_file: ./hammerhead-fit-downloader/.env
+    env_file: .env
     volumes:
-      - ./watch:/data/dreeve/watch                          # same folder Dreeve watches
-      - ./hammerhead-fit-downloader/state:/data/hammerhead/state
-      - ./hammerhead-fit-downloader/tokens:/data/hammerhead/tokens
+      - ./watch:/data/dreeve/watch
+      - ./hammerhead/state:/data/hammerhead/state
+      - ./hammerhead/tokens:/data/hammerhead/tokens
     networks:
       - dreeve-network
-
-networks:
-  dreeve-network:
-    external: true
 ```
 
 Point the `./watch` mount at whatever host path Dreeve's own service already
-uses for its watch folder, so both containers see the same directory. The
-`networks:` block is only needed if `dreeve-network` isn't already declared
-elsewhere in that same compose file — Compose will error if you declare an
-`external: true` network twice under the same name.
+uses for its watch folder, so both containers see the same directory.
 
 Note that joining `dreeve-network` is about convenience (co-located
 lifecycle, consistent DNS/service discovery with the rest of the stack), not
