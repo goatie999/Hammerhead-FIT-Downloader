@@ -6,4 +6,4 @@ the same way dreeve-garmin-connector does for Garmin Connect. Inspired by,
 and grateful to, the Dreeve maintainers and community for that project.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
